@@ -1,122 +1,69 @@
-# from flask import Blueprint, request, jsonify
+import json
 
-# prediction_bp = Blueprint(
-#     "prediction",
-#     __name__
-# )
+from flask import Blueprint, jsonify, request
 
-# @prediction_bp.route(
-#     "/predict",
-#     methods=["POST"]
-# )
-# def predict():
-
-#     payload = request.json
-
-#     return jsonify({
-#         "renewal_percentage": 82,
-#         "health_status": "Healthy",
-#         "summary": "Customer has strong engagement",
-#         "recommended_actions": [
-#             "Schedule renewal discussion",
-#             "Offer expansion package"
-#         ]
-#     })
-
-
-
-
-# from flask import Blueprint, request, jsonify
-
-# prediction_bp = Blueprint("prediction", __name__)
-
-# @prediction_bp.route("/predict", methods=["POST"])
-# def predict():
-#     """
-#     Renewal Prediction
-#     ---
-#     tags:
-#       - AI Prediction
-
-#     consumes:
-#       - application/json
-
-#     parameters:
-#       - in: body
-#         name: body
-#         required: true
-#         schema:
-#           type: object
-#           properties:
-#             accountName:
-#               type: string
-#             contractValue:
-#               type: string
-
-#     responses:
-#       200:
-#         description: Success
-#     """
-
-#     return jsonify({
-#         "renewal_percentage": 85,
-#         "health_status": "Healthy"
-#     })
-
-
-from flask import Blueprint, request, jsonify
-from services.prediction_service import generate_renewal_prediction  # Adjust this import based on your folder structure
+from services.prediction_service import (
+    generate_account_analysis,
+    generate_chat_response,
+    generate_renewal_prediction,
+    generate_suggestions,
+)
 
 prediction_bp = Blueprint("prediction", __name__)
 
-@prediction_bp.route("/predict", methods=["POST"])
-def predict():
-    """
-    Renewal Prediction
-    ---
-    tags:
-      - AI Prediction
-    consumes:
-      - application/json
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          properties:
-            accountName:
-              type: string
-            contractValue:
-              type: string
-    responses:
-      200:
-        description: Success
-    """
-    # 1. Get the JSON payload sent by the user
-    account_data = request.json
-    
-    if not account_data:
+
+def parse_ai_json(raw_response):
+    if isinstance(raw_response, dict):
+        return raw_response
+
+    if not isinstance(raw_response, str):
+        raise ValueError("AI response was not JSON text")
+
+    cleaned = raw_response.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    elif cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+
+    return json.loads(cleaned.strip())
+
+
+def run_ai_endpoint(service_fn):
+    payload = request.get_json(silent=True)
+
+    if not payload:
         return jsonify({"error": "Missing request body"}), 400
 
     try:
-        # 2. Call your service function that communicates with Gemini
-        ai_response_string = generate_renewal_prediction(account_data)
-        
-        # 3. Because Gemini returns a JSON string, parse it into a Python dict 
-        # so Flask can return it as a proper JSON object.
-        import json
-        ai_response_json = json.loads(ai_response_string)
-        
-        return jsonify(ai_response_json), 200
-
-    except json.JSONDecodeError:
-        # Fallback if Gemini returns markdown code blocks like ```json ... ```
-        # clean the string if needed or handle the error
+        ai_response = service_fn(payload)
+        return jsonify(parse_ai_json(ai_response)), 200
+    except json.JSONDecodeError as exc:
         return jsonify({
             "error": "Failed to parse AI response as JSON",
-            "raw_response": ai_response_string
+            "detail": str(exc),
+            "raw_response": ai_response if "ai_response" in locals() else None
         }), 500
-        
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@prediction_bp.route("/predict", methods=["POST"])
+def predict():
+    return run_ai_endpoint(generate_renewal_prediction)
+
+
+@prediction_bp.route("/predict/account-analysis", methods=["POST"])
+def account_analysis():
+    return run_ai_endpoint(generate_account_analysis)
+
+
+@prediction_bp.route("/predict/suggestions", methods=["POST"])
+def suggestions():
+    return run_ai_endpoint(generate_suggestions)
+
+
+@prediction_bp.route("/predict/chat", methods=["POST"])
+def chat():
+    return run_ai_endpoint(generate_chat_response)

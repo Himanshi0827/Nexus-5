@@ -1,506 +1,173 @@
-
-// import React, { useEffect, useMemo, useState } from 'react';
-// import {  getAccountById, getAccessToken, login,getAgreement } from './API/api';
-// import { GetRecords } from './API/Records';
-// import { generateMockAgreements } from './mockSalesforceData';
-
-// const parseNumber = (value) => {
-//   if (value == null) return 0;
-//   const cleaned = String(value).replace(/[^0-9.-]/g, '');
-//   const result = Number(cleaned);
-//   return Number.isFinite(result) ? result : 0;
-// };
-
-// const formatMoney = (value) => {
-//   if (typeof value === 'number') return `$${value.toLocaleString()}`;
-//   if (!value) return 'N/A';
-//   return String(value);
-// };
-
-// const makeDefaultAgreement = () => ({
-//   id: 'placeholder',
-//   accountName: 'Loading agreement data...',
-//   contractValue: 'N/A',
-//   renewalDate: 'TBD',
-//   riskScore: 0,
-//   probability: '0%',
-//   parameters: {
-//     discount: '0%',
-//     supportTickets: 0,
-//     amendments: 0,
-//     inactiveDays: 0,
-//     clauseRisk: 'Low',
-//     quoteRevisions: 0
-//   },
-//   aiInsights: {
-//     summary: 'API connection in progress. Once the record loads, key account values appear here.',
-//     recommendations: ['Waiting for agreement record to load.']
-//   },
-//   timeline: [
-//     { month: 'TBD', event: 'Pending', desc: 'Awaiting live agreement data from the API.' }
-//   ]
-// });
-
-// const normalizeAgreement = (record, index) => {
-//   const rawParameters = record.parameters || {};
-//   const discountRaw = record.Discount__c || record.Discount || record.discount || rawParameters.discount;
-//   const supportTicketsRaw = record.SupportTickets__c || record.SupportTickets || record.supportTickets || rawParameters.supportTickets;
-//   const inactiveDaysRaw = record.InactiveDays__c || record.InactiveDays || record.inactiveDays || rawParameters.inactiveDays;
-//   const clauseRiskRaw = record.ClauseRisk__c || record.ClauseRisk || record.clauseRisk || rawParameters.clauseRisk;
-//   const quoteRevisionsRaw = record.QuoteRevisions__c || record.QuoteRevisions || record.quoteRevisions || rawParameters.quoteRevisions;
-
-//   const discountValue = parseNumber(discountRaw);
-//   const inactiveDays = parseNumber(inactiveDaysRaw);
-//   const supportTickets = parseNumber(supportTicketsRaw);
-//   const quoteRevisions = parseNumber(quoteRevisionsRaw);
-
-//   const clauseRisk = clauseRiskRaw || (inactiveDays > 45 ? 'High' : inactiveDays > 20 ? 'Medium' : 'Low');
-//   const baseRisk = 30 + Math.min(discountValue, 40) + Math.min(supportTickets * 4, 40) + (inactiveDays > 30 ? 15 : 0) + (clauseRisk === 'High' ? 15 : clauseRisk === 'Medium' ? 8 : 0);
-//   const riskScore = Math.min(100, Math.max(5, Math.round(baseRisk)));
-//   const probability = `${Math.max(5, 100 - riskScore)}%`;
-
-//   return {
-//     id: record.Id || record.id || record.AgreementId || record.AgreementNumber || `API-${index}`,
-//     accountId: record.AccountId || (record.Account && (record.Account.Id || record.Account.Id__c)) || record.AccountId__c || record.accountId || null,
-//     accountName: record.Name || record.AccountName || (record.Account && (record.Account.Name || record.Account.AccountName)) || record.CompanyName || `Agreement ${index + 1}`,
-//     contractValue: formatMoney(record.ContractValue__c || record.ContractValue || record.Amount || record.contractValue),
-//     renewalDate: record.RenewalDate__c || record.RenewalDate || record.renewalDate || record.EndDate || 'TBD',
-//     riskScore,
-//     probability,
-//     parameters: {
-//       discount: `${discountValue}%`,
-//       supportTickets,
-//       amendments: parseNumber(record.Amendments__c || record.amendments || rawParameters.amendments),
-//       inactiveDays,
-//       clauseRisk,
-//       quoteRevisions
-//     },
-//     aiInsights: {
-//       summary:
-//         record.AI_Summary__c || record.AnalysisSummary || record.aiSummary ||
-//         `Live API agreement loaded for ${record.Name || record.AccountName || record.Account || `record ${index + 1}`}.`,
-//       recommendations: [
-//         record.Recommendation1__c || `Review the current renewal terms and work with the customer success team.`,
-//         record.Recommendation2__c || `Check open support cases and reduce renewal friction.`,
-//         record.Recommendation3__c || `Confirm contract value and discount exposure before next customer touchpoint.`
-//       ]
-//     },
-//     timeline: [
-//       { month: 'Current', event: 'API record loaded', desc: `Agreement data loaded from the Conga API source.` },
-//       { month: 'TBD', event: 'Additional insights', desc: `More historical events can be shown once the API record includes timeline fields.` }
-//     ]
-//   };
-// };
-
-// const normalizeResults = (result) => {
-//   const items = Array.isArray(result.Data)
-//     ? result.Data
-//     : Array.isArray(result.data)
-//     ? result.data
-//     : Array.isArray(result)
-//     ? result
-//     : [];
-
-//   return items.map(normalizeAgreement);
-// };
-
-// export default function App() {
-//   const [agreements, setAgreements] = useState([]);
-//   const [isAuthenticated, setIsAuthenticated] = useState(Boolean(sessionStorage.getItem('user') || getAccessToken()));
-//   const [selectedAccId, setSelectedAccId] = useState(null);
-//   const [currentPage, setCurrentPage] = useState('dashboard');
-//   const [accountsMap, setAccountsMap] = useState({});
-//   const [accountDetails, setAccountDetails] = useState(null);
-//   const [loading, setLoading] = useState(true);
-//   const [error, setError] = useState(null);
-
-//   useEffect(() => {
-//     const onLogin = () => setIsAuthenticated(true);
-//     window.addEventListener('user-logged-in', onLogin);
-//     return () => window.removeEventListener('user-logged-in', onLogin);
-//   }, []);
-
-//   useEffect(() => {
-//     const loadAgreements = async () => {
-//       setLoading(true);
-//       setError(null);
-
-//       try {
-//         const result = await getAgreement();
-//         const normalized = normalizeResults(result);
-
-//         if (!normalized.length) {
-//           throw new Error('API returned no agreement records. Using fallback mock data.');
-//         }
-
-//         // attempt to fetch accounts and map by Id
-//         try {
-//           const accResult = await GetRecords('Account');
-//           const accItems = Array.isArray(accResult)
-//             ? accResult
-//             : Array.isArray(accResult.Data)
-//             ? accResult.Data
-//             : Array.isArray(accResult.data)
-//             ? accResult.data
-//             : [];
-
-//           const map = {};
-//           accItems.forEach((a) => {
-//             const id = a.Id || a.id || a.AccountId || a.AccountId__c;
-//             if (id) map[id] = a;
-//           });
-//           setAccountsMap(map);
-
-//           // merge account names into normalized agreements when possible
-//           const merged = normalized.map((ag) => {
-//             if (ag.accountId && map[ag.accountId]) {
-//               return { ...ag, accountName: map[ag.accountId].Name || map[ag.accountId].name || ag.accountName };
-//             }
-//             return ag;
-//           });
-
-//           setAgreements(merged);
-//           setSelectedAccId(merged[0].id);
-//         } catch (accErr) {
-//           // if accounts fetch fails, fallback to agreements only
-//           console.warn('Account fetch failed, continuing with agreements only', accErr);
-//           setAgreements(normalized);
-//           setSelectedAccId(normalized[0].id);
-//         }
-//       } catch (err) {
-//         console.error('Agreement API error:', err);
-//         setError(err?.message || 'Unable to fetch agreement data from API.');
-//         const fallback = generateMockAgreements();
-//         setAgreements(fallback);
-//         setSelectedAccId(fallback[0].id);
-//       } finally {
-//         setLoading(false);
-//       }
-//     };
-
-//     loadAgreements();
-//   }, []);
-
-//   const allAgreements = agreements.length ? agreements : [makeDefaultAgreement()];
-//   const currentAgreement = allAgreements.find((a) => a.id === selectedAccId) || allAgreements[0] || makeDefaultAgreement();
-
-//   // when an agreement is selected for details, try to fetch full account details
-//   useEffect(() => {
-//     const loadAccountDetails = async () => {
-//       if (!selectedAccId || currentPage !== 'details') return;
-//       const ag = allAgreements.find((x) => x.id === selectedAccId);
-//       if (!ag || !ag.accountId) {
-//         setAccountDetails(null);
-//         return;
-//       }
-
-//       try {
-//         const acc = await getAccountById(ag.accountId);
-//         setAccountDetails(acc || null);
-//       } catch (err) {
-//         console.warn('Failed to load account details for', ag.accountId, err);
-//         setAccountDetails(null);
-//       }
-//     };
-
-//     loadAccountDetails();
-//   }, [selectedAccId, currentPage, allAgreements]);
-
-//   const stats = useMemo(() => {
-//     const high = allAgreements.filter((a) => a.riskScore > 60).length;
-//     const med = allAgreements.filter((a) => a.riskScore > 30 && a.riskScore <= 60).length;
-//     const low = allAgreements.filter((a) => a.riskScore <= 30).length;
-//     return { high, med, low, total: allAgreements.length };
-//   }, [allAgreements]);
-
-//   const getRiskStatus = (score) => {
-//     if (score > 60) return { label: 'High Risk', color: '#DC2626', bg: '#FEE2E2' };
-//     if (score > 30) return { label: 'Medium Risk', color: '#D97706', bg: '#FEF3C7' };
-//     return { label: 'Healthy', color: '#059669', bg: '#D1FAE5' };
-//   };
-
-//   return (
-//     <div style={styles.appContainer}>
-//       <nav style={styles.navbar}>
-//         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-//           <div style={styles.logoIcon}>⚡</div>
-//           <div>
-//             <h1 style={styles.navTitle}>Conga + Salesforce Renewal Intelligence Hub</h1>
-//             <p style={styles.navSubtitle}>Enterprise Risk Scoring Architecture & AI Explainability Layer</p>
-//           </div>
-//         </div>
-//         <div style={styles.navButtonGroup}>
-//           <button
-//             style={{
-//               ...styles.navBtn,
-//               backgroundColor: currentPage === 'dashboard' ? '#2563EB' : 'transparent',
-//               color: currentPage === 'dashboard' ? '#FFF' : '#374151'
-//             }}
-//             onClick={() => setCurrentPage('dashboard')}
-//           >
-//             📊 Executive Dashboard
-//           </button>
-//           <button
-//             style={{
-//               ...styles.navBtn,
-//               backgroundColor: currentPage === 'details' ? '#2563EB' : 'transparent',
-//               color: currentPage === 'details' ? '#FFF' : '#374151'
-//             }}
-//             onClick={() => setCurrentPage('details')}
-//           >
-//             🔍 Deep-Dive Inspection {(accountDetails && (accountDetails.Name || accountDetails.name)) || currentAgreement.accountName.split(' ')[0]}
-//           </button>
-
-//           {!isAuthenticated ? (
-//             <button style={{ ...styles.navBtn, backgroundColor: '#10B981', color: '#fff' }} onClick={() => login()}>
-//               🔐 Sign in
-//             </button>
-//           ) : (
-//             <button
-//               style={{ ...styles.navBtn, backgroundColor: 'transparent', color: '#374151' }}
-//               onClick={() => {
-//                 sessionStorage.removeItem('user');
-//                 setIsAuthenticated(false);
-//               }}
-//             >
-//               ⎋ Sign out
-//             </button>
-//           )}
-//         </div>
-//       </nav>
-
-//       {loading && (
-//         <div style={{ marginBottom: '24px', color: '#1F2937' }}>
-//           Loading live agreement data from the API...{error ? ` Error: ${error}` : ''}
-//         </div>
-//       )}
-
-//       {!loading && error && (
-//         <div style={{ marginBottom: '24px', color: '#B91C1C' }}>
-//           API fallback active. Showing generated mock data while live data is unavailable.
-//         </div>
-//       )}
-
-//       {currentPage === 'dashboard' && (
-//         <div>
-//           <div style={styles.statsRow}>
-//             <div style={{ ...styles.statBox, borderLeft: '6px solid #DC2626' }}>
-//               <span style={styles.statLabel}>High Risk Accounts</span>
-//               <span style={{ ...styles.statVal, color: '#DC2626' }}>{stats.high}</span>
-//             </div>
-//             <div style={{ ...styles.statBox, borderLeft: '6px solid #D97706' }}>
-//               <span style={styles.statLabel}>Medium Risk Attention</span>
-//               <span style={{ ...styles.statVal, color: '#D97706' }}>{stats.med}</span>
-//             </div>
-//             <div style={{ ...styles.statBox, borderLeft: '6px solid #059669' }}>
-//               <span style={styles.statLabel}>Healthy / Stable Pipelines</span>
-//               <span style={{ ...styles.statVal, color: '#059669' }}>{stats.low}</span>
-//             </div>
-//             <div style={{ ...styles.statBox, borderLeft: '6px solid #6B7280' }}>
-//               <span style={styles.statLabel}>Total Analyzed Agreements</span>
-//               <span style={styles.statVal}>{stats.total}</span>
-//             </div>
-//           </div>
-
-//           <div style={styles.card}>
-//             <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#111827' }}>Live Conga CLM Contract Audit Stream</h3>
-//             <div style={{ overflowX: 'auto' }}>
-//               <table style={styles.table}>
-//                 <thead>
-//                   <tr style={styles.thRow}>
-//                     <th style={styles.th}>Account Reference</th>
-//                     <th style={styles.th}>Contract Value</th>
-//                     <th style={styles.th}>Discount %</th>
-//                     <th style={styles.th}>Inactivity (Days)</th>
-//                     <th style={styles.th}>Clause Complexity</th>
-//                     <th style={styles.th}>Engine Risk Score</th>
-//                     <th style={{ ...styles.th, textAlign: 'right' }}>Action</th>
-//                   </tr>
-//                 </thead>
-//                 <tbody>
-//                   {allAgreements.map((item) => {
-//                     const status = getRiskStatus(item.riskScore);
-//                     return (
-//                       <tr key={item.id} style={styles.tr}>
-//                         <td style={{ ...styles.td, fontWeight: '600', color: '#111827' }}>{(accountsMap[item.accountId] && (accountsMap[item.accountId].Name || accountsMap[item.accountId].name)) || item.accountName}</td>
-//                         <td style={styles.td}>{item.contractValue}</td>
-//                         <td style={styles.td}>{item.parameters.discount}</td>
-//                         <td style={styles.td}>{item.parameters.inactiveDays} Days</td>
-//                         <td style={styles.td}>
-//                           <span
-//                             style={{
-//                               fontSize: '12px',
-//                               padding: '2px 6px',
-//                               borderRadius: '4px',
-//                               backgroundColor: item.parameters.clauseRisk === 'High' ? '#FEE2E2' : '#F3F4F6',
-//                               color: item.parameters.clauseRisk === 'High' ? '#991B1B' : '#374151'
-//                             }}
-//                           >
-//                             {item.parameters.clauseRisk}
-//                           </span>
-//                         </td>
-//                         <td style={styles.td}>
-//                           <span style={{ ...styles.badge, backgroundColor: status.bg, color: status.color }}>
-//                             {item.riskScore} ({status.label})
-//                           </span>
-//                         </td>
-//                         <td style={{ ...styles.td, textAlign: 'right' }}>
-//                           <button
-//                             style={styles.actionLink}
-//                             onClick={() => {
-//                               setSelectedAccId(item.id);
-//                               setCurrentPage('details');
-//                             }}
-//                           >
-//                             Analyze →
-//                           </button>
-//                         </td>
-//                       </tr>
-//                     );
-//                   })}
-//                 </tbody>
-//               </table>
-//             </div>
-//           </div>
-//         </div>
-//       )}
-
-//       {currentPage === 'details' && (
-//         <div style={styles.gridSplit}>
-//           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-//             <div style={styles.card}>
-//               <span style={{ fontSize: '12px', color: '#4B5563', fontWeight: 'bold' }}>SALESFORCE REVENUE CONTEXT</span>
-//               <h2 style={{ margin: '4px 0 16px 0', fontSize: '22px' }}>{(accountDetails && (accountDetails.Name || accountDetails.name)) || currentAgreement.accountName}</h2>
-//               <div style={styles.paramsGrid}>
-//                 <div style={styles.paramItem}><strong>Contract ID:</strong> {currentAgreement.id}</div>
-//                 <div style={styles.paramItem}><strong>ARR Value:</strong> {currentAgreement.contractValue}</div>
-//                 <div style={styles.paramItem}><strong>Target Expiry:</strong> {currentAgreement.renewalDate}</div>
-//                 <div style={styles.paramItem}><strong>CPQ Discount:</strong> {currentAgreement.parameters.discount}</div>
-//                 <div style={styles.paramItem}><strong>Quote Revisions:</strong> {currentAgreement.parameters.quoteRevisions} Iterations</div>
-//                 <div style={styles.paramItem}><strong>Open Cases:</strong> {currentAgreement.parameters.supportTickets} Tickets</div>
-//               </div>
-
-//               {accountDetails && (
-//                 <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
-//                   <div style={{ fontWeight: '700', marginBottom: '6px' }}>Account Details</div>
-//                   <div style={{ fontSize: '14px', color: '#374151' }}><strong>Name:</strong> {accountDetails.Name || accountDetails.name}</div>
-//                   {accountDetails.Industry && <div style={{ fontSize: '14px', color: '#374151' }}><strong>Industry:</strong> {accountDetails.Industry}</div>}
-//                   {accountDetails.Phone && <div style={{ fontSize: '14px', color: '#374151' }}><strong>Phone:</strong> {accountDetails.Phone}</div>}
-//                   {accountDetails.BillingCity && <div style={{ fontSize: '14px', color: '#374151' }}><strong>City:</strong> {accountDetails.BillingCity}</div>}
-//                 </div>
-//               )}
-
-//               <div style={{ ...styles.engineOutputBox, borderColor: getRiskStatus(currentAgreement.riskScore).color }}>
-//                 <div>
-//                   <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#4B5563' }}>INTELLIGENCE CALCULATION</div>
-//                   <div style={{ fontSize: '32px', fontWeight: '800', margin: '4px 0', color: getRiskStatus(currentAgreement.riskScore).color }}>
-//                     {currentAgreement.riskScore} / 100
-//                   </div>
-//                 </div>
-//                 <div style={{ textAlign: 'right' }}>
-//                   <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#4B5563' }}>RENEWAL PROBABILITY</div>
-//                   <div style={{ fontSize: '32px', fontWeight: '800', margin: '4px 0', color: '#2563EB' }}>
-//                     {currentAgreement.probability}
-//                   </div>
-//                 </div>
-//               </div>
-//             </div>
-
-//             <div style={styles.card}>
-//               <h3 style={{ marginTop: 0, color: '#111827' }}>Historical AI Risk Timeline</h3>
-//               <div style={styles.timelineContainer}>
-//                 {currentAgreement.timeline.map((item, index) => (
-//                   <div key={index} style={styles.timelineNode}>
-//                     <div style={styles.timelineDot}></div>
-//                     <div style={styles.timelineContent}>
-//                       <span style={styles.timelineMonth}>{item.month}</span>
-//                       <strong style={styles.timelineEvent}>{item.event}</strong>
-//                       <p style={styles.timelineDesc}>{item.desc}</p>
-//                     </div>
-//                   </div>
-//                 ))}
-//               </div>
-//             </div>
-//           </div>
-
-//           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-//             <div style={{ ...styles.card, backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }}>
-//               <h3 style={{ marginTop: 0, color: '#1E40AF', display: 'flex', alignItems: 'center', gap: '8px' }}>
-//                 <span>✨</span> Azure AI Foundry Explanation Layer
-//               </h3>
-//               <p style={{ lineHeight: '1.6', color: '#1E3A8A', margin: 0 }}>{currentAgreement.aiInsights.summary}</p>
-//             </div>
-
-//             <div style={styles.card}>
-//               <h3 style={{ marginTop: 0, color: '#111827' }}>Prescriptive Action Matrix</h3>
-//               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-//                 {currentAgreement.aiInsights.recommendations.map((rec, idx) => (
-//                   <div key={idx} style={styles.recItem}>
-//                     <div style={styles.recNumber}>{idx + 1}</div>
-//                     <div style={{ color: '#374151', fontSize: '14px', lineHeight: '1.4' }}>{rec}</div>
-//                   </div>
-//                 ))}
-//               </div>
-
-//               <button
-//                 style={styles.emailGenBtn}
-//                 onClick={() => alert(`Generated Draft Email for ${currentAgreement.accountName}:\n\n\"Dear Customer, We noticed issues regarding outstanding engineering cases...\"`)}
-//               >
-//                 ✉️ Auto-Draft Recovery Communications
-//               </button>
-//             </div>
-//           </div>
-//         </div>
-//       )}
-//     </div>
-//   );
-// }
-
-// const styles = {
-//   appContainer: { fontFamily: 'Segoe UI, system-ui, sans-serif', backgroundColor: '#F3F4F6', minHeight: '100vh', padding: '24px', boxSizing: 'border-box' },
-//   navbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFF', padding: '16px 24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px', border: '1px solid #E5E7EB', flexWrap: 'wrap', gap: '16px' },
-//   logoIcon: { fontSize: '24px', background: '#DBEAFE', padding: '8px', borderRadius: '8px' },
-//   navTitle: { margin: 0, fontSize: '18px', fontWeight: '700', color: '#111827' },
-//   navSubtitle: { margin: '2px 0 0 0', fontSize: '12px', color: '#6B7280' },
-//   navButtonGroup: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
-//   navBtn: { border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', transition: 'all 0.2s' },
-//   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' },
-//   statBox: { backgroundColor: '#FFF', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', border: '1px solid #E5E7EB' },
-//   statLabel: { fontSize: '12px', color: '#6B7280', fontWeight: '600', textTransform: 'uppercase' },
-//   statVal: { fontSize: '28px', fontWeight: '800', marginTop: '6px', color: '#111827' },
-//   card: { backgroundColor: '#FFF', padding: '24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #E5E7EB' },
-//   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
-//   thRow: { borderBottom: '2px solid #E5E7EB' },
-//   th: { padding: '12px 16px', color: '#4B5563', fontSize: '13px', fontWeight: '600' },
-//   tr: { borderBottom: '1px solid #E5E7EB' },
-//   td: { padding: '14px 16px', fontSize: '14px', color: '#4B5563' },
-//   badge: { fontSize: '12px', fontWeight: '700', padding: '4px 8px', borderRadius: '6px' },
-//   actionLink: { background: 'none', border: 'none', color: '#2563EB', fontWeight: '600', cursor: 'pointer', fontSize: '14px' },
-//   gridSplit: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' },
-//   paramsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', margin: '16px 0' },
-//   paramItem: { fontSize: '14px', color: '#4B5563', backgroundColor: '#F9FAFB', padding: '8px 12px', borderRadius: '6px', border: '1px solid #E5E7EB' },
-//   engineOutputBox: { display: 'flex', justifyContent: 'space-between', backgroundColor: '#F9FAFB', padding: '16px', borderRadius: '8px', marginTop: '16px', borderLeft: '4px solid' },
-//   timelineContainer: { display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '12px' },
-//   timelineNode: { display: 'flex', gap: '16px', position: 'relative' },
-//   timelineDot: { width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#2563EB', marginTop: '6px', zIndex: 2 },
-//   timelineContent: { display: 'flex', flexDirection: 'column' },
-//   timelineMonth: { fontSize: '11px', color: '#9CA3AF', fontWeight: '700', textTransform: 'uppercase' },
-//   timelineEvent: { fontSize: '14px', color: '#111827', margin: '2px 0' },
-//   timelineDesc: { fontSize: '13px', color: '#6B7280', margin: 0 },
-//   recItem: { display: 'flex', gap: '12px', alignItems: 'flex-start' },
-//   recNumber: { backgroundColor: '#F3F4F6', color: '#1F2937', fontWeight: '700', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', flexShrink: 0 },
-//   emailGenBtn: { marginTop: '20px', width: '100%', border: 'none', backgroundColor: '#10B981', color: '#FFF', padding: '12px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '14px' }
-// };
-
 import { useEffect, useMemo, useState } from 'react';
-import { getPrediction } from './API/api';
+import {
+  getAccountById,
+  getPrediction,
+  getRenewalSuggestions,
+  getSingleAccountAnalysis,
+  login,
+  sendRenewalChatMessage
+} from './API/api';
 import { GetRecords } from './API/Records';
+
+const DASHBOARD_OBJECTS = {
+  accounts: 'Account',
+  opportunities: 'Opportunity',
+  quotes: 'Proposal',
+  assets: 'Asset',
+  renewals: 'Renewals_c',
+  entitlements: 'entitlements_c'
+};
+
+const DETAIL_OBJECTS = {
+  agreements: 'Agreement',
+  quoteLines: ['QuoteLine', 'ProposalLineItem', 'AgreementLineItem']
+};
+
+const FIELD_GROUPS = [
+  {
+    key: 'account',
+    title: 'Account Main Detail',
+    getRecords: (account) => [account],
+    fields: [
+      ['Risk Tier', ['risk_tier', 'risk_tier_c', 'RiskTier__c']],
+      ['Renewal Readiness Score', ['renewal_readiness_score', 'renewal_readiness_score_c', 'RenewalReadinessScore__c']],
+      ['ARR Health', ['arr_health', 'arr_health_c', 'ArrHealth__c']],
+      ['Outside Risk To Renewal', ['outside_risk_to_renewal', 'outside_risk_to_renewal_c', 'OutsideRiskToRenewal__c']],
+      ['Competitor Activity', ['competitor_activity', 'competitor_activity_c', 'CompetitorActivity__c']],
+      ['License Utilization %', ['license_utilization_pct', 'license_utilization_pct_c', 'LicenseUtilizationPct__c']],
+      ['Usage Trend', ['usage_trend', 'usage_trend_c', 'UsageTrend__c']],
+      ['Production Deployment', ['production_deployment', 'production_deployment_c', 'ProductionDeployment__c']],
+      ['Products In Use', ['products_in_use', 'products_in_use_c', 'ProductsInUse__c']],
+      ['Products Not Used', ['products_not_used', 'products_not_used_c', 'ProductsNotUsed__c']],
+      ['Last Engagement Days Ago', ['last_engagement_days_ago', 'last_engagement_days_ago_c', 'LastEngagementDaysAgo__c']],
+      ['CSM Engagement Level', ['csm_engagement_level', 'csm_engagement_level_c', 'CsmEngagementLevel__c']],
+      ['Support Tickets Last 90 Days', ['support_tickets_last_90_days', 'support_tickets_last_90_days_c', 'SupportTicketsLast90Days__c']],
+      ['Escalations', ['escalations', 'escalations_c', 'Escalations__c']],
+      ['NPS Score', ['nps_score', 'nps_score_c', 'NpsScore__c']],
+      ['Days To Renewal', ['days_to_renewal', 'days_to_renewal_c', 'DaysToRenewal__c']],
+      ['Tenure Years', ['tenure_years', 'tenure_years_c', 'TenureYears__c']],
+      ['Previous Renewal Count', ['previous_renewal_count', 'previous_renewal_count_c', 'PreviousRenewalCount__c']],
+      ['Subscription Renewal Type', ['subscription_renewal_type', 'subscription_renewal_type_c', 'SubscriptionRenewalType__c']],
+      ['ACV USD', ['acv_usd', 'acv_usd_c', 'AcvUsd__c']],
+      ['Industry', ['Industry', 'industry']],
+      ['Annual Revenue', ['AnnualRevenue', 'annualRevenue']]
+    ]
+  },
+  {
+    key: 'agreements',
+    title: 'Agreement',
+    getRecords: (account) => account.agreements || [],
+    fields: [
+      ['Subscription Renewal Type', ['subscription_renewal_type', 'subscription_renewal_type_c', 'SubscriptionRenewalType__c']],
+      ['Status', ['status', 'Status']],
+      ['Status Category', ['status_category', 'status_category_c', 'StatusCategory__c']],
+      ['Termination Notice Days', ['termination_notice_days', 'termination_notice_days_c', 'TerminationNoticeDays__c']],
+      ['Limitation Of Liability', ['limitation_of_liability', 'limitation_of_liability_c', 'LimitationOfLiability__c']],
+      ['Amendments Count', ['amendments_count', 'amendments_count_c', 'AmendmentsCount__c']],
+      ['Document Versions Count', ['document_versions_count', 'document_versions_count_c', 'DocumentVersionsCount__c']],
+      ['Approvals Count', ['approvals_count', 'approvals_count_c', 'ApprovalsCount__c']],
+      ['Agreement End Date', ['agreement_end_date', 'agreement_end_date_c', 'AgreementEndDate__c', 'EndDate']],
+      ['Effective Date', ['effective_date', 'effective_date_c', 'EffectiveDate__c', 'EffectiveDate']],
+      ['Term Months', ['term_months', 'term_months_c', 'TermMonths__c']],
+      ['Type Of Paper', ['type_of_paper', 'type_of_paper_c', 'TypeOfPaper__c']],
+      ['Payment Terms', ['payment_terms', 'payment_terms_c', 'PaymentTerms__c']]
+    ]
+  },
+  {
+    key: 'assets',
+    title: 'Asset',
+    getRecords: (account) => account.assets || [],
+    fields: [
+      ['Asset Status', ['asset_status', 'asset_status_c', 'AssetStatus__c', 'Status']],
+      ['Days To Asset Expiry', ['days_to_asset_expiry', 'days_to_asset_expiry_c', 'DaysToAssetExpiry__c']],
+      ['Quantity', ['quantity', 'Quantity']],
+      ['ARR USD', ['arr_usd', 'arr_usd_c', 'ArrUsd__c']],
+      ['ACV USD', ['acv_usd', 'acv_usd_c', 'AcvUsd__c']],
+      ['Selling Term Months', ['selling_term_months', 'selling_term_months_c', 'SellingTermMonths__c']],
+      ['Asset Expired', ['asset_expired', 'asset_expired_c', 'AssetExpired__c']]
+    ]
+  },
+  {
+    key: 'entitlements',
+    title: 'Entitlements',
+    getRecords: (account) => account.entitlements || [],
+    fields: [
+      ['Status', ['status', 'Status']],
+      ['Cases Used', ['cases_used', 'cases_used_c', 'CasesUsed__c']],
+      ['Remaining Cases', ['remaining_cases', 'remaining_cases_c', 'RemainingCases__c']],
+      ['Support Tier Numeric', ['support_tier_numeric', 'support_tier_numeric_c', 'SupportTierNumeric__c']],
+      ['End Date', ['end_date', 'end_date_c', 'EndDate__c', 'EndDate']]
+    ]
+  },
+  {
+    key: 'opportunities',
+    title: 'Opportunity',
+    getRecords: (account) => account.opportunities || [],
+    fields: [
+      ['Stage', ['stage', 'Stage', 'StageName']],
+      ['Days In Current Stage', ['days_in_current_stage', 'days_in_current_stage_c', 'DaysInCurrentStage__c']],
+      ['Close Date', ['close_date', 'close_date_c', 'CloseDate__c', 'CloseDate']],
+      ['Forecast Category', ['forecast_category', 'forecast_category_c', 'ForecastCategory__c', 'ForecastCategory']],
+      ['Quote Attached', ['quote_attached', 'quote_attached_c', 'QuoteAttached__c']],
+      ['Stage History Count', ['stage_history_count', 'stage_history_count_c', 'StageHistoryCount__c']]
+    ]
+  },
+  {
+    key: 'quoteLines',
+    title: 'Quote Line',
+    getRecords: (account) => account.quoteLines || [],
+    fields: [
+      ['Sales Discount %', ['sales_discount_pct', 'sales_discount_pct_c', 'SalesDiscountPct__c']],
+      ['Quantity', ['quantity', 'Quantity']],
+      ['Charge Type', ['charge_type', 'charge_type_c', 'ChargeType__c']],
+      ['Ext Net Price', ['ext_net_price', 'ext_net_price_c', 'ExtNetPrice__c']],
+      ['Approval Status', ['approval_status', 'approval_status_c', 'ApprovalStatus__c']]
+    ]
+  },
+  {
+    key: 'quotes',
+    title: 'Quotes',
+    getRecords: (account) => account.quotes || [],
+    fields: [
+      ['Approval Stage', ['approval_stage', 'approval_stage_c', 'ApprovalStage__c']],
+      ['Discount %', ['discount_pct', 'discount_pct_c', 'DiscountPct__c']],
+      ['Quote Revisions', ['quote_revisions', 'quote_revisions_c', 'QuoteRevisions__c']],
+      ['Valid Until Date', ['valid_until_date', 'valid_until_date_c', 'ValidUntilDate__c']],
+      ['Upsell Accepted', ['upsell_accepted', 'upsell_accepted_c', 'UpsellAccepted__c']],
+      ['Primary', ['primary', 'Primary', 'primary_c', 'Primary__c']]
+    ]
+  },
+  {
+    key: 'renewals',
+    title: 'Renewals',
+    getRecords: (account) => account.renewals || [],
+    fields: [
+      ['Renewed', ['renewed', 'renewed_c', 'Renewed__c']],
+      ['Churn Reason', ['churn_reason', 'churn_reason_c', 'ChurnReason__c']],
+      ['Engagement Score At Renewal', ['engagement_score_at_renewal', 'engagement_score_at_renewal_c', 'EngagementScoreAtRenewal__c']],
+      ['License Utilization At Renewal', ['license_utilization_at_renewal', 'license_utilization_at_renewal_c', 'LicenseUtilizationAtRenewal__c']],
+      ['Days Before Expiry Contacted', ['days_before_expiry_contacted', 'days_before_expiry_contacted_c', 'DaysBeforeExpiryContacted__c']],
+      ['Executive Engaged', ['executive_engaged', 'executive_engaged_c', 'ExecutiveEngaged__c']],
+      ['Discount Given %', ['discount_given_pct', 'discount_given_pct_c', 'DiscountGivenPct__c']],
+      ['Upsell Included', ['upsell_included', 'upsell_included_c', 'UpsellIncluded__c']]
+    ]
+  }
+];
+
+const toArray = (result) => {
+  if (Array.isArray(result?.Data)) return result.Data;
+  if (Array.isArray(result?.data)) return result.data;
+  if (Array.isArray(result)) return result;
+  return [];
+};
 
 const getLookupId = (value) => {
   if (!value) return null;
   if (typeof value === 'string') return value;
   return value.Id || value.id || value.Value || value.value || null;
 };
+
+const getRecordId = (record) => record?.Id || record?.id;
 
 const getAccountId = (record) => (
   record?.AccountId ||
@@ -517,146 +184,306 @@ const getAccountId = (record) => (
   null
 );
 
-const getRecordId = (record) => record?.Id || record?.id;
+const getQuoteId = (record) => (
+  record?.QuoteId ||
+  record?.ProposalId ||
+  record?.Proposal_c__c ||
+  getLookupId(record?.Quote) ||
+  getLookupId(record?.Proposal) ||
+  getLookupId(record?.Proposal_c) ||
+  getLookupId(record?.Quote_c) ||
+  null
+);
+
+const buildAccountMap = (records) => {
+  const map = {};
+
+  records.forEach((record) => {
+    const accountId = getAccountId(record);
+    if (!accountId) return;
+    if (!map[accountId]) map[accountId] = [];
+    map[accountId].push(record);
+  });
+
+  return map;
+};
+
+const getFieldValue = (record, candidates) => {
+  for (const field of candidates) {
+    const value = record?.[field];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return null;
+};
+
+const parseNumber = (value) => {
+  if (value == null || value === '') return 0;
+  if (typeof value === 'object' && 'Value' in value) return parseNumber(value.Value);
+
+  const result = Number(String(value).replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(result) ? result : 0;
+};
+
+const formatValue = (value) => {
+  if (value === null || value === undefined || value === '') return 'N/A';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'object') {
+    if ('Value' in value) return formatValue(value.Value);
+    if ('Name' in value) return value.Name;
+    if ('Id' in value) return value.Id;
+    return JSON.stringify(value);
+  }
+  return String(value);
+};
+
+const formatMoney = (value) => {
+  const amount = parseNumber(value);
+  if (!amount) return 'N/A';
+  return amount.toLocaleString(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0
+  });
+};
+
+const getRiskStatus = (score) => {
+  if (score > 60) return { label: 'High Risk', color: '#DC2626', bg: '#FEE2E2' };
+  if (score > 30) return { label: 'Medium Risk', color: '#B45309', bg: '#FEF3C7' };
+  return { label: 'Healthy', color: '#047857', bg: '#D1FAE5' };
+};
+
+const normalizePrediction = (prediction) => ({
+  riskScore: parseNumber(prediction?.riskScore ?? prediction?.risk_score),
+  probability: prediction?.probability || `${parseNumber(prediction?.renewalPercentage ?? prediction?.renewal_percentage)}%`,
+  summary: prediction?.summary || '',
+  riskLevel: prediction?.riskLevel || prediction?.risk_level || '',
+  keyReasons: prediction?.keyReasons || prediction?.key_reasons || [],
+  recommendedActions: prediction?.recommendedActions || prediction?.recommended_actions || []
+});
+
+async function getFirstAvailableRecords(objectNames) {
+  const names = Array.isArray(objectNames) ? objectNames : [objectNames];
+  const results = await Promise.all(names.map((name) => GetRecords(name)));
+  return results.flatMap(toArray);
+}
 
 export default function App() {
+  const hasStoredUser = Boolean(sessionStorage.getItem('user'));
   const [accounts, setAccounts] = useState([]);
+  const [isAuthenticated, setIsAuthenticated] = useState(hasStoredUser);
   const [selectedAccId, setSelectedAccId] = useState(null);
+  const [selectedAccount, setSelectedAccount] = useState(null);
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(hasStoredUser);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [detailError, setDetailError] = useState(null);
+  const [singleAnalysis, setSingleAnalysis] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
 
-  // 1. Bulk Initializer Sequence 
+  useEffect(() => {
+    const onLogin = () => {
+      setIsAuthenticated(true);
+      setLoading(true);
+    };
+    window.addEventListener('user-logged-in', onLogin);
+    return () => window.removeEventListener('user-logged-in', onLogin);
+  }, []);
+
   useEffect(() => {
     const loadPipelineData = async () => {
       setLoading(true);
       setError(null);
+
       try {
-        // Execute all 6 Conga platform collections in parallel
         const [
           accountResult,
           opportunityResult,
-          proposalResult,
+          quoteResult,
           assetResult,
           renewalResult,
           entitlementResult
         ] = await Promise.all([
-          GetRecords("Account"),
-          GetRecords("Opportunity"),
-          GetRecords("Proposal"),
-          GetRecords("Asset"),
-          GetRecords("Renewals_c"),
-          GetRecords("entitlements_c")
+          GetRecords(DASHBOARD_OBJECTS.accounts),
+          GetRecords(DASHBOARD_OBJECTS.opportunities),
+          GetRecords(DASHBOARD_OBJECTS.quotes),
+          GetRecords(DASHBOARD_OBJECTS.assets),
+          GetRecords(DASHBOARD_OBJECTS.renewals),
+          GetRecords(DASHBOARD_OBJECTS.entitlements)
         ]);
 
-        const accountData = accountResult?.Data || accountResult || [];
-        console.log('Loaded Account records:', accountData);
-        const opportunityData = opportunityResult?.Data || opportunityResult || [];
-        console.log('Loaded Opportunity records:', opportunityData);
-        const proposalData = proposalResult?.Data || proposalResult || [];
-        console.log('Loaded Proposal records:', proposalData);
-        const assetData = assetResult?.Data || assetResult || [];
-        console.log('Loaded Asset records:', assetData);
-        const renewalData = renewalResult?.Data || renewalResult || [];
-        console.log('Loaded Renewal records:', renewalData);
-        const entitlementData = entitlementResult?.Data || entitlementResult || [];
-        console.log('Loaded Entitlement records:', entitlementData);
+        const accountData = toArray(accountResult);
+        const opportunityMap = buildAccountMap(toArray(opportunityResult));
+        const quoteMap = buildAccountMap(toArray(quoteResult));
+        const assetMap = buildAccountMap(toArray(assetResult));
+        const renewalMap = buildAccountMap(toArray(renewalResult));
+        const entitlementMap = buildAccountMap(toArray(entitlementResult));
 
-        // Build localized key maps for fast grouping
-        const buildMap = (records) => {
-          const map = {};
-          records.forEach(record => {
-            const accountId = getAccountId(record);
-            if (!accountId) return;
-            if (!map[accountId]) map[accountId] = [];
-            map[accountId].push(record);
-          });
-          return map;
-        };
+        const mergedAccounts = accountData.map((account) => {
+          const accountId = getRecordId(account);
+          return {
+            ...account,
+            Id: accountId,
+            opportunities: opportunityMap[accountId] || [],
+            quotes: quoteMap[accountId] || [],
+            proposals: quoteMap[accountId] || [],
+            assets: assetMap[accountId] || [],
+            renewals: renewalMap[accountId] || [],
+            entitlements: entitlementMap[accountId] || [],
+            agreements: [],
+            quoteLines: [],
+            riskScore: 0,
+            probability: 'Pending'
+          };
+        });
 
-        const opportunityMap = buildMap(opportunityData);
-        const proposalMap = buildMap(proposalData);
-        const assetMap = buildMap(assetData);
-        const renewalMap = buildMap(renewalData);
-        const entitlementMap = buildMap(entitlementData);
+        setAccounts(mergedAccounts);
+        setSelectedAccId((currentId) => currentId || mergedAccounts[0]?.Id || null);
 
-        // Merge baseline models
-        const mergedPayload = accountData.map(account => ({
-          ...account,
-          Id: getRecordId(account),
-          opportunities: opportunityMap[getRecordId(account)] || [],
-          proposals: proposalMap[getRecordId(account)] || [],
-          assets: assetMap[getRecordId(account)] || [],
-          renewals: renewalMap[getRecordId(account)] || [],
-          entitlements: entitlementMap[getRecordId(account)] || [],
-          // Safeguard properties if ML payload isn't returned yet
-          riskScore: 0, 
-          probability: '0%'
-        }));
-
-        // 2. Dispatch combined JSON Payload to AI Engine for multi-variant predictions
         try {
-          const bulkAIResponse = await getPrediction({ accounts: mergedPayload });
-          
-          // Map calculated predictions back into state array context
-          if (bulkAIResponse && bulkAIResponse.predictions) {
-            const predictableMap = {};
-            bulkAIResponse.predictions.forEach(p => {
-              predictableMap[p.accountId] = p;
-            });
+          const bulkAIResponse = await getPrediction({ accounts: mergedAccounts });
+          const predictionMap = {};
 
-            const finalEnrichedData = mergedPayload.map(acc => {
-              const aiData = predictableMap[acc.Id];
-              return aiData ? { ...acc, riskScore: aiData.riskScore, probability: aiData.probability } : acc;
-            });
-            setAccounts(finalEnrichedData);
-          } else {
-            setAccounts(mergedPayload);
-          }
-        } catch (aiErr) {
-          console.error("Bulk AI Prediction system execution failed:", aiErr);
-          setAccounts(mergedPayload); // Fallback to standard merged records without weights
+          toArray(bulkAIResponse?.predictions).forEach((prediction) => {
+            const accountId = prediction.accountId || prediction.account_id || prediction.Id || prediction.id;
+            if (accountId) predictionMap[accountId] = normalizePrediction(prediction);
+          });
+
+          setAccounts(
+            mergedAccounts.map((account) => ({
+              ...account,
+              ...(predictionMap[account.Id] || {})
+            }))
+          );
+        } catch (predictionErr) {
+          console.error('Bulk prediction failed:', predictionErr);
+          setError(predictionErr?.message || 'Accounts loaded, but bulk prediction failed.');
         }
-
       } catch (err) {
         console.error('Pipeline initialization failure:', err);
-        setError(err?.message || 'Unable to load structural pipeline definitions.');
+        setError(err?.message || 'Unable to load account renewal data.');
       } finally {
         setLoading(false);
       }
     };
 
-    loadPipelineData();
-  }, []);
+    if (isAuthenticated) loadPipelineData();
+  }, [isAuthenticated]);
 
-  // Compute live analytical KPI stats from unified account array
   const stats = useMemo(() => {
-    const high = accounts.filter((a) => (a.riskScore || 0) > 60).length;
-    const med = accounts.filter((a) => (a.riskScore || 0) > 30 && (a.riskScore || 0) <= 60).length;
-    const low = accounts.filter((a) => (a.riskScore || 0) <= 30).length;
+    const high = accounts.filter((account) => account.riskScore > 60).length;
+    const med = accounts.filter((account) => account.riskScore > 30 && account.riskScore <= 60).length;
+    const low = accounts.filter((account) => account.riskScore <= 30).length;
     return { high, med, low, total: accounts.length };
   }, [accounts]);
 
-  const selectedAccount = useMemo(() => {
-    return accounts.find(a => a.Id === selectedAccId) || null;
-  }, [accounts, selectedAccId]);
+  const loadAccountAnalysis = async (account) => {
+    const accountId = getRecordId(account);
+    setSelectedAccId(accountId);
+    setCurrentPage('details');
+    setSelectedAccount(account);
+    setSingleAnalysis(null);
+    setSuggestions([]);
+    setChatMessages([]);
+    setDetailLoading(true);
+    setAiLoading(true);
+    setDetailError(null);
 
-  const getRiskStatus = (score) => {
-    if (score > 60) return { label: 'High Risk', color: '#DC2626', bg: '#FEE2E2' };
-    if (score > 30) return { label: 'Medium Risk', color: '#D97706', bg: '#FEF3C7' };
-    return { label: 'Healthy', color: '#059669', bg: '#D1FAE5' };
+    try {
+      const [fullAccount, agreementRecords, quoteLineRecords] = await Promise.all([
+        getAccountById(accountId),
+        getFirstAvailableRecords(DETAIL_OBJECTS.agreements),
+        getFirstAvailableRecords(DETAIL_OBJECTS.quoteLines)
+      ]);
+
+      const quoteIds = new Set((account.quotes || account.proposals || []).map(getRecordId).filter(Boolean));
+      const agreements = agreementRecords.filter((record) => getAccountId(record) === accountId);
+      const quoteLines = quoteLineRecords.filter((record) => {
+        const recordAccountId = getAccountId(record);
+        if (recordAccountId === accountId) return true;
+        const quoteId = getQuoteId(record);
+        return quoteId && quoteIds.has(quoteId);
+      });
+
+      const detailedAccount = {
+        ...account,
+        ...(fullAccount || {}),
+        Id: accountId,
+        agreements,
+        quoteLines
+      };
+
+      setSelectedAccount(detailedAccount);
+      setAccounts((current) => current.map((item) => (item.Id === accountId ? { ...item, ...detailedAccount } : item)));
+
+      const [analysisResult, suggestionResult] = await Promise.all([
+        getSingleAccountAnalysis({ account: detailedAccount }),
+        getRenewalSuggestions({ account: detailedAccount })
+      ]);
+
+      const analysis = analysisResult?.analysis || analysisResult;
+      setSingleAnalysis(analysis);
+      setSuggestions(suggestionResult?.suggestions || suggestionResult?.recommendedActions || analysis?.recommendedActions || []);
+    } catch (err) {
+      console.error('Account analysis failed:', err);
+      setDetailError(err?.message || 'Unable to load detailed account analysis.');
+    } finally {
+      setDetailLoading(false);
+      setAiLoading(false);
+    }
   };
+
+  const sendChat = async () => {
+    const message = chatInput.trim();
+    if (!message || !selectedAccount) return;
+
+    const nextMessages = [...chatMessages, { role: 'user', content: message }];
+    setChatMessages(nextMessages);
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      const result = await sendRenewalChatMessage({
+        account: selectedAccount,
+        messages: nextMessages,
+        message
+      });
+
+      setChatMessages([
+        ...nextMessages,
+        { role: 'assistant', content: result?.reply || result?.answer || 'I could not generate a response.' }
+      ]);
+    } catch (err) {
+      console.error('Renewal chat failed:', err);
+      setChatMessages([
+        ...nextMessages,
+        { role: 'assistant', content: 'Chat analysis failed. Please try again after the backend is running.' }
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const activeAccount = selectedAccount || accounts.find((account) => account.Id === selectedAccId);
+  const activeAnalysis = singleAnalysis || activeAccount || {};
+  const activeRisk = parseNumber(activeAnalysis.riskScore ?? activeAccount?.riskScore);
+  const activeStatus = getRiskStatus(activeRisk);
 
   return (
     <div style={styles.appContainer}>
       <nav style={styles.navbar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={styles.logoIcon}>⚡</div>
+          <div style={styles.logoIcon}>CI</div>
           <div>
-            <h1 style={styles.navTitle}>Conga + Salesforce Renewal Intelligence Hub</h1>
-            <p style={styles.navSubtitle}>Enterprise Risk Scoring Architecture & AI Explainability Layer</p>
+            <h1 style={styles.navTitle}>Conga Renewal Intelligence Hub</h1>
+            <p style={styles.navSubtitle}>Account renewal risk with Conga object context</p>
           </div>
         </div>
+
         <div style={styles.navButtonGroup}>
           <button
             style={{
@@ -666,51 +493,74 @@ export default function App() {
             }}
             onClick={() => setCurrentPage('dashboard')}
           >
-            📊 Executive Dashboard
+            Dashboard
           </button>
           <button
             style={{
               ...styles.navBtn,
               backgroundColor: currentPage === 'details' ? '#2563EB' : 'transparent',
-              color: currentPage === 'details' ? '#FFF' : '#374151'
+              color: currentPage === 'details' ? '#FFF' : '#374151',
+              opacity: activeAccount ? 1 : 0.55
             }}
-            disabled={!selectedAccId}
+            disabled={!activeAccount}
             onClick={() => setCurrentPage('details')}
           >
-            🔍 Deep-Dive Inspection {selectedAccount ? `(${selectedAccount.Name})` : ''}
+            Analyze Detail
           </button>
+          {!isAuthenticated ? (
+            <button style={{ ...styles.navBtn, backgroundColor: '#059669', color: '#FFF' }} onClick={() => login()}>
+              Sign in
+            </button>
+          ) : (
+            <button
+              style={{ ...styles.navBtn, backgroundColor: 'transparent', color: '#374151' }}
+              onClick={() => {
+                sessionStorage.removeItem('user');
+                setIsAuthenticated(false);
+                setAccounts([]);
+                setSelectedAccount(null);
+                setSelectedAccId(null);
+              }}
+            >
+              Sign out
+            </button>
+          )}
         </div>
       </nav>
 
-      {loading && (
-        <div style={{ marginBottom: '24px', color: '#1F2937' }}>
-          Loading live account information from parallel Conga system calls...
+      {loading && <div style={styles.statusText}>Loading live account information from Conga...</div>}
+
+      {!loading && !isAuthenticated && (
+        <div style={styles.card}>
+          <h2 style={{ marginTop: 0 }}>Sign in to load account renewal data</h2>
+          <p style={{ color: '#4B5563', marginBottom: '16px' }}>
+            After sign-in the dashboard will load accounts and related Conga records.
+          </p>
+          <button style={{ ...styles.navBtn, backgroundColor: '#059669', color: '#FFF' }} onClick={() => login()}>
+            Sign in
+          </button>
         </div>
       )}
 
-      {!loading && error && (
-        <div style={{ marginBottom: '24px', color: '#B91C1C' }}>
-          Error pipeline: {error}
-        </div>
-      )}
+      {!loading && error && <div style={{ ...styles.statusText, color: '#B91C1C' }}>{error}</div>}
 
-      {currentPage === 'dashboard' && !loading && (
+      {currentPage === 'dashboard' && !loading && isAuthenticated && (
         <div>
           <div style={styles.statsRow}>
             <div style={{ ...styles.statBox, borderLeft: '6px solid #DC2626' }}>
               <span style={styles.statLabel}>High Risk Accounts</span>
               <span style={{ ...styles.statVal, color: '#DC2626' }}>{stats.high}</span>
             </div>
-            <div style={{ ...styles.statBox, borderLeft: '6px solid #D97706' }}>
+            <div style={{ ...styles.statBox, borderLeft: '6px solid #B45309' }}>
               <span style={styles.statLabel}>Medium Risk Attention</span>
-              <span style={{ ...styles.statVal, color: '#D97706' }}>{stats.med}</span>
+              <span style={{ ...styles.statVal, color: '#B45309' }}>{stats.med}</span>
             </div>
-            <div style={{ ...styles.statBox, borderLeft: '6px solid #059669' }}>
-              <span style={styles.statLabel}>Healthy Stable Pipelines</span>
-              <span style={{ ...styles.statVal, color: '#059669' }}>{stats.low}</span>
+            <div style={{ ...styles.statBox, borderLeft: '6px solid #047857' }}>
+              <span style={styles.statLabel}>Healthy Accounts</span>
+              <span style={{ ...styles.statVal, color: '#047857' }}>{stats.low}</span>
             </div>
-            <div style={{ ...styles.statBox, borderLeft: '6px solid #6B7280' }}>
-              <span style={styles.statLabel}>Total Account Matrices</span>
+            <div style={{ ...styles.statBox, borderLeft: '6px solid #4B5563' }}>
+              <span style={styles.statLabel}>Total Accounts Analyzed</span>
               <span style={styles.statVal}>{stats.total}</span>
             </div>
           </div>
@@ -735,25 +585,19 @@ export default function App() {
                     const status = getRiskStatus(item.riskScore || 0);
                     return (
                       <tr key={item.Id} style={styles.tr}>
-                        <td style={{ ...styles.td, fontWeight: '600', color: '#111827' }}>{item.Name || 'N/A'}</td>
-                        <td style={styles.td}>{item.Industry || 'N/A'}</td>
-                        <td style={styles.td}>{item.AnnualRevenue?.Value || item.AnnualRevenue || 'N/A'}</td>
-                        <td style={styles.td}>{item.days_to_renewal_c || '0'} Days</td>
-                        <td style={styles.td}>{item.renewal_readiness_score_c || 'N/A'}</td>
+                        <td style={{ ...styles.td, fontWeight: '600', color: '#111827' }}>{item.Name || item.name || 'N/A'}</td>
+                        <td style={styles.td}>{item.Industry || item.industry || 'N/A'}</td>
+                        <td style={styles.td}>{formatMoney(item.AnnualRevenue || item.annualRevenue)}</td>
+                        <td style={styles.td}>{formatValue(getFieldValue(item, ['days_to_renewal_c', 'days_to_renewal', 'DaysToRenewal__c']))} Days</td>
+                        <td style={styles.td}>{formatValue(getFieldValue(item, ['renewal_readiness_score_c', 'renewal_readiness_score', 'RenewalReadinessScore__c']))}</td>
                         <td style={styles.td}>
                           <span style={{ ...styles.badge, backgroundColor: status.bg, color: status.color }}>
-                            {item.riskScore || 0}% ({status.label})
+                            {item.riskScore || 0}% {status.label}
                           </span>
                         </td>
                         <td style={{ ...styles.td, textAlign: 'right' }}>
-                          <button
-                            style={styles.actionLink}
-                            onClick={() => {
-                              setSelectedAccId(item.Id);
-                              setCurrentPage('details');
-                            }}
-                          >
-                            Analyze →
+                          <button style={styles.actionLink} onClick={() => loadAccountAnalysis(item)}>
+                            Analyze
                           </button>
                         </td>
                       </tr>
@@ -766,75 +610,170 @@ export default function App() {
         </div>
       )}
 
-      {currentPage === 'details' && selectedAccount && (
-        <div style={styles.gridSplit}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {currentPage === 'details' && activeAccount && (
+        <div style={styles.detailLayout}>
+          <div style={styles.detailMain}>
             <div style={styles.card}>
-              <span style={{ fontSize: '12px', color: '#4B5563', fontWeight: 'bold' }}>CONGA CONTEXT PLATFORM</span>
-              <h2 style={{ margin: '4px 0 16px 0', fontSize: '22px' }}>{selectedAccount.Name}</h2>
-              <div style={styles.paramsGrid}>
-                <div style={styles.paramItem}><strong>Industry:</strong> {selectedAccount.Industry || 'N/A'}</div>
-                <div style={styles.paramItem}><strong>Opportunities:</strong> {selectedAccount.opportunities.length} Items</div>
-                <div style={styles.paramItem}><strong>Proposals/Quotes:</strong> {selectedAccount.proposals.length} Records</div>
-                <div style={styles.paramItem}><strong>Assets Managed:</strong> {selectedAccount.assets.length} Active</div>
-                <div style={styles.paramItem}><strong>Open Entitlements:</strong> {selectedAccount.entitlements.length} Active</div>
+              <div style={styles.detailHeader}>
+                <div>
+                  <span style={styles.overline}>Selected Account</span>
+                  <h2 style={{ margin: '4px 0 0 0', fontSize: '22px' }}>{activeAccount.Name || activeAccount.name}</h2>
+                </div>
+                <button style={styles.actionButton} onClick={() => loadAccountAnalysis(activeAccount)} disabled={detailLoading || aiLoading}>
+                  Refresh Analysis
+                </button>
               </div>
 
-              <div style={{ ...styles.engineOutputBox, borderColor: getRiskStatus(selectedAccount.riskScore || 0).color }}>
+              {detailError && <div style={{ ...styles.statusText, color: '#B91C1C' }}>{detailError}</div>}
+              {detailLoading && <div style={styles.statusText}>Fetching full account and related detail records...</div>}
+
+              <div style={{ ...styles.engineOutputBox, borderColor: activeStatus.color }}>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#4B5563' }}>INTELLIGENCE RISK SCORE</div>
-                  <div style={{ fontSize: '32px', fontWeight: '800', margin: '4px 0', color: getRiskStatus(selectedAccount.riskScore || 0).color }}>
-                    {selectedAccount.riskScore || 0} / 100
-                  </div>
+                  <div style={styles.boxLabel}>Single Account Risk</div>
+                  <div style={{ ...styles.boxValue, color: activeStatus.color }}>{activeRisk || 0} / 100</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#4B5563' }}>RENEWAL PROBABILITY</div>
-                  <div style={{ fontSize: '32px', fontWeight: '800', margin: '4px 0', color: '#2563EB' }}>
-                    {selectedAccount.probability || '0%'}
+                  <div style={styles.boxLabel}>Renewal Probability</div>
+                  <div style={{ ...styles.boxValue, color: '#2563EB' }}>
+                    {activeAnalysis.probability || activeAccount.probability || 'Pending'}
                   </div>
                 </div>
               </div>
+
+              <p style={styles.summaryText}>
+                {aiLoading ? 'Generating account summary with Gemini...' : activeAnalysis.summary || 'Run analysis to generate the account renewal summary.'}
+              </p>
             </div>
+
+            {FIELD_GROUPS.map((group) => {
+              const records = group.getRecords(activeAccount);
+              return (
+                <details key={group.key} open={group.key === 'account'} style={styles.dropdownCard}>
+                  <summary style={styles.dropdownSummary}>
+                    <span>{group.title}</span>
+                    <span style={styles.countPill}>{records.length}</span>
+                  </summary>
+                  {records.length ? (
+                    records.map((record, index) => (
+                      <div key={getRecordId(record) || `${group.key}-${index}`} style={styles.recordBlock}>
+                        {records.length > 1 && <div style={styles.recordTitle}>Record {index + 1}</div>}
+                        <div style={styles.fieldGrid}>
+                          {group.fields.map(([label, candidates]) => (
+                            <div key={label} style={styles.fieldItem}>
+                              <span style={styles.fieldLabel}>{label}</span>
+                              <span style={styles.fieldValue}>{formatValue(getFieldValue(record, candidates))}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={styles.emptyText}>No related {group.title.toLowerCase()} records found for this account.</div>
+                  )}
+                </details>
+              );
+            })}
           </div>
+
+          <aside style={styles.sidePanel}>
+            <div style={styles.card}>
+              <span style={styles.overline}>Renewal Suggestions</span>
+              {(suggestions.length ? suggestions : ['Run analysis to generate renewal actions.']).map((suggestion, index) => (
+                <div key={`${suggestion}-${index}`} style={styles.recItem}>
+                  <div style={styles.recNumber}>{index + 1}</div>
+                  <div style={{ color: '#374151', fontSize: '14px', lineHeight: 1.4 }}>{formatValue(suggestion)}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={styles.card}>
+              <span style={styles.overline}>Renewal Chat</span>
+              <div style={styles.chatBox}>
+                {chatMessages.length ? (
+                  chatMessages.map((message, index) => (
+                    <div
+                      key={`${message.role}-${index}`}
+                      style={{
+                        ...styles.chatBubble,
+                        alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
+                        backgroundColor: message.role === 'user' ? '#DBEAFE' : '#F3F4F6'
+                      }}
+                    >
+                      {message.content}
+                    </div>
+                  ))
+                ) : (
+                  <div style={styles.emptyText}>Ask what is blocking renewal, which stakeholder to contact, or what action should happen next.</div>
+                )}
+                {chatLoading && <div style={styles.emptyText}>Gemini is thinking...</div>}
+              </div>
+              <div style={styles.chatInputRow}>
+                <input
+                  style={styles.chatInput}
+                  value={chatInput}
+                  onChange={(event) => setChatInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') sendChat();
+                  }}
+                  placeholder="Ask about this renewal..."
+                />
+                <button style={styles.actionButton} onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
+                  Send
+                </button>
+              </div>
+            </div>
+          </aside>
         </div>
       )}
     </div>
   );
 }
 
-// Keep the styles object from your original implementation below...
 const styles = {
   appContainer: { fontFamily: 'Segoe UI, system-ui, sans-serif', backgroundColor: '#F3F4F6', minHeight: '100vh', padding: '24px', boxSizing: 'border-box' },
-  navbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFF', padding: '16px 24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px', border: '1px solid #E5E7EB', flexWrap: 'wrap', gap: '16px' },
-  logoIcon: { fontSize: '24px', background: '#DBEAFE', padding: '8px', borderRadius: '8px' },
+  navbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFF', padding: '16px 24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px', border: '1px solid #E5E7EB', flexWrap: 'wrap', gap: '16px' },
+  logoIcon: { fontSize: '13px', fontWeight: '800', color: '#1D4ED8', background: '#DBEAFE', padding: '8px', borderRadius: '6px' },
   navTitle: { margin: 0, fontSize: '18px', fontWeight: '700', color: '#111827' },
   navSubtitle: { margin: '2px 0 0 0', fontSize: '12px', color: '#6B7280' },
   navButtonGroup: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
   navBtn: { border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', transition: 'all 0.2s' },
+  statusText: { marginBottom: '16px', color: '#1F2937', fontSize: '14px' },
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' },
   statBox: { backgroundColor: '#FFF', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', border: '1px solid #E5E7EB' },
   statLabel: { fontSize: '12px', color: '#6B7280', fontWeight: '600', textTransform: 'uppercase' },
   statVal: { fontSize: '28px', fontWeight: '800', marginTop: '6px', color: '#111827' },
-  card: { backgroundColor: '#FFF', padding: '24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #E5E7EB' },
+  card: { backgroundColor: '#FFF', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #E5E7EB' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
   thRow: { borderBottom: '2px solid #E5E7EB' },
-  th: { padding: '12px 16px', color: '#4B5563', fontSize: '13px', fontWeight: '600' },
+  th: { padding: '12px 16px', color: '#4B5563', fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap' },
   tr: { borderBottom: '1px solid #E5E7EB' },
-  td: { padding: '14px 16px', fontSize: '14px', color: '#4B5563' },
-  badge: { fontSize: '12px', fontWeight: '700', padding: '4px 8px', borderRadius: '6px' },
+  td: { padding: '14px 16px', fontSize: '14px', color: '#4B5563', verticalAlign: 'middle' },
+  badge: { fontSize: '12px', fontWeight: '700', padding: '4px 8px', borderRadius: '6px', whiteSpace: 'nowrap' },
   actionLink: { background: 'none', border: 'none', color: '#2563EB', fontWeight: '600', cursor: 'pointer', fontSize: '14px' },
-  gridSplit: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' },
-  paramsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', margin: '16px 0' },
-  paramItem: { fontSize: '14px', color: '#4B5563', backgroundColor: '#F9FAFB', padding: '8px 12px', borderRadius: '6px', border: '1px solid #E5E7EB' },
-  engineOutputBox: { display: 'flex', justifyContent: 'space-between', backgroundColor: '#F9FAFB', padding: '16px', borderRadius: '8px', marginTop: '16px', borderLeft: '4px solid' },
-  timelineContainer: { display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '12px' },
-  timelineNode: { display: 'flex', gap: '16px', position: 'relative' },
-  timelineDot: { width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#2563EB', marginTop: '6px', zIndex: 2 },
-  timelineContent: { display: 'flex', flexDirection: 'column' },
-  timelineMonth: { fontSize: '11px', color: '#9CA3AF', fontWeight: '700', textTransform: 'uppercase' },
-  timelineEvent: { fontSize: '14px', color: '#111827', margin: '2px 0' },
-  timelineDesc: { fontSize: '13px', color: '#6B7280', margin: 0 },
-  recItem: { display: 'flex', gap: '12px', alignItems: 'flex-start' },
+  actionButton: { border: 'none', backgroundColor: '#2563EB', color: '#FFF', padding: '8px 12px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '13px' },
+  detailLayout: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '24px', alignItems: 'start' },
+  detailMain: { display: 'flex', flexDirection: 'column', gap: '16px' },
+  sidePanel: { display: 'flex', flexDirection: 'column', gap: '16px', position: 'sticky', top: '24px' },
+  detailHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' },
+  overline: { fontSize: '12px', color: '#4B5563', fontWeight: '700', textTransform: 'uppercase' },
+  engineOutputBox: { display: 'flex', justifyContent: 'space-between', gap: '16px', backgroundColor: '#F9FAFB', padding: '16px', borderRadius: '8px', marginTop: '16px', borderLeft: '4px solid' },
+  boxLabel: { fontSize: '13px', fontWeight: '700', color: '#4B5563', textTransform: 'uppercase' },
+  boxValue: { fontSize: '32px', fontWeight: '800', margin: '4px 0' },
+  summaryText: { color: '#374151', lineHeight: 1.6, margin: '16px 0 0 0' },
+  dropdownCard: { backgroundColor: '#FFF', border: '1px solid #E5E7EB', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  dropdownSummary: { cursor: 'pointer', padding: '14px 18px', fontWeight: '700', color: '#111827', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  countPill: { fontSize: '12px', color: '#374151', backgroundColor: '#F3F4F6', borderRadius: '999px', padding: '2px 8px' },
+  recordBlock: { padding: '0 18px 18px 18px', borderTop: '1px solid #F3F4F6' },
+  recordTitle: { fontSize: '12px', color: '#6B7280', fontWeight: '700', textTransform: 'uppercase', margin: '12px 0 8px 0' },
+  fieldGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px' },
+  fieldItem: { backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '6px', padding: '10px 12px', minWidth: 0 },
+  fieldLabel: { display: 'block', fontSize: '11px', color: '#6B7280', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px' },
+  fieldValue: { display: 'block', fontSize: '14px', color: '#111827', overflowWrap: 'anywhere' },
+  emptyText: { color: '#6B7280', fontSize: '14px', lineHeight: 1.5, padding: '12px 18px 18px 18px' },
+  recItem: { display: 'flex', gap: '12px', alignItems: 'flex-start', marginTop: '12px' },
   recNumber: { backgroundColor: '#F3F4F6', color: '#1F2937', fontWeight: '700', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', flexShrink: 0 },
-  emailGenBtn: { marginTop: '20px', width: '100%', border: 'none', backgroundColor: '#10B981', color: '#FFF', padding: '12px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '14px' }
+  chatBox: { minHeight: '260px', maxHeight: '420px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', margin: '16px 0', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '12px', backgroundColor: '#FFF' },
+  chatBubble: { maxWidth: '85%', padding: '10px 12px', borderRadius: '8px', color: '#111827', fontSize: '14px', lineHeight: 1.45 },
+  chatInputRow: { display: 'flex', gap: '8px' },
+  chatInput: { flex: 1, border: '1px solid #D1D5DB', borderRadius: '6px', padding: '9px 10px', fontSize: '14px', minWidth: 0 }
 };

@@ -94,10 +94,9 @@ export async function getAccountById(id) {
   }
 }
 
-export async function getPrediction(payload) {
-
+async function postLocalAI(path, payload, fallbackError) {
   const response = await fetch(
-    "http://localhost:5000/predict",
+    `http://localhost:5000${path}`,
     {
       method: "POST",
       headers: {
@@ -109,10 +108,26 @@ export async function getPrediction(payload) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || "Prediction failed");
+    throw new Error(errorText || fallbackError);
   }
 
   return response.json();
+}
+
+export async function getPrediction(payload) {
+  return postLocalAI("/predict", payload, "Prediction failed");
+}
+
+export async function getSingleAccountAnalysis(payload) {
+  return postLocalAI("/predict/account-analysis", payload, "Account analysis failed");
+}
+
+export async function getRenewalSuggestions(payload) {
+  return postLocalAI("/predict/suggestions", payload, "Renewal suggestions failed");
+}
+
+export async function sendRenewalChatMessage(payload) {
+  return postLocalAI("/predict/chat", payload, "Renewal chat failed");
 }
 
 export async function getAccount() {
