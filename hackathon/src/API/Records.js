@@ -4,6 +4,9 @@ export async function GetRecords(Objects) {
   try {
     const geturl = "https://preview-rls09.congacloud.com/api/data/v1/objects";
     const access_token = getAccessToken();
+    if (!access_token) {
+      throw new Error("Missing access token");
+    }
     const response = await fetch(`${geturl}/${Objects}`, {
       method: "GET",
       headers: {

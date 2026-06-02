@@ -40,8 +40,8 @@ export function getAccessToken() {
   const user = JSON.parse(sessionStorage.getItem("user"));
   if (!user || !user.access_token) {
     login();
+    return null;
   }
-  console.log("bearer",user.accessToken);
   return user.access_token;
 }
  
@@ -108,7 +108,8 @@ export async function getPrediction(payload) {
   );
 
   if (!response.ok) {
-    throw new Error("Prediction failed");
+    const errorText = await response.text();
+    throw new Error(errorText || "Prediction failed");
   }
 
   return response.json();
